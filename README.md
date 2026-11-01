@@ -213,17 +213,17 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
 
 ## How I Used AI
 
-**Moment 1**
+**Moment 1: checking whether my acceptance criteria were testable**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I brought five proposed criteria to Claude and asked it to check whether a stranger could verify each one without asking me what I meant (the check the assignment recommends).
+- *What came back:* It flagged that criterion 1 didn't say *which* 10 samples, that the score-spread criterion had no sample size, and, most importantly, that my 100-word minimum would refuse most poems on a writing site *and* would break the requirement that every submission gets one of the three labels.
+- *What I changed:* I chose a 25-word minimum where short text gets the "unsure" label instead of being refused, required at least 3 of my 10 human samples to be formal or plain writing, and added sample sizes and a 404 rule for unknown appeal ids.
 
-**Moment 2**
+**Moment 2: choosing the AI threshold after calibration**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* After running my four calibration samples, I asked Claude to explain the trade-offs between a strict threshold (0.85), a tight one (0.80), and an agreement rule.
+- *What came back:* It pointed out that my own statement of purpose scored 0.765, only 0.04 below clearly AI text, so no threshold cleanly separates them. A 0.80 threshold would pass my writing by a fragile margin, and an agreement rule would just be tuning to two data points. It recommended the strict option as the only one consistent with my 0-false-positive criterion.
+- *What I changed:* I chose 0.85 (strict) instead of the slides' default of 0.78, and I wrote the cost into my README honestly: ordinary AI text now lands in "unsure."
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
