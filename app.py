@@ -242,10 +242,17 @@ def submit():
     # Combine both signals. The rule lives in scoring.py::combine_signals.
     combined = float(scoring.combine_signals(model_score, style_score))
 
-    # Placeholders until Milestone 5.
-    guess = "unsure"
-    label = "placeholder label"
-    confidence = 0.5
+    # Milestone 5: turn the combined score into a guess and a label.
+    guess, label = scoring.score_to_label(combined)
+
+    # Confidence = how far the score sits from a coin flip (0.5), on 0-1.
+    # 0.0 means "no idea"; 1.0 means the score is at an extreme.
+    confidence = abs(combined - 0.5) * 2
+
+    # Criterion 3: under 25 words is too short to judge. Never accuse.
+    if word_count < 25:
+        guess, label = "unsure", scoring.LABEL_UNSURE
+        confidence = 0.0
 
     audit.log_decision(
         content_id=content_id,
