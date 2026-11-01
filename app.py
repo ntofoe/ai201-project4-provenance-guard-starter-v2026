@@ -298,14 +298,47 @@ def appeal():
     to the person on the other end. It's the only thing standing between a
     wrong accusation and nothing at all.
     """
-    payload = request.get_json(silent=True) or {}
 
-    # TODO: delete this and build the route.
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "INVALID_REQUEST",
+                        "message": "Send JSON with 'content_id' and 'reasoning'."}), 400
+
+    content_id = payload.get("content_id")
+    reasoning = payload.get("reasoning")
+
+    if not isinstance(content_id, str) or not content_id.strip():
+        return jsonify({"error": "MISSING_CONTENT_ID",
+                        "message": "'content_id' is required."}), 400
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return jsonify({"error": "MISSING_REASONING",
+                        "message": "Please tell us why you think the result is wrong."}), 400
+
+    content_id = content_id.strip()
+
+    # Criterion 4: an unknown content_id returns 404 and changes nothing.
+    history = audit.entries_for(content_id)
+    if not history:
+        return jsonify({"error": "NOT_FOUND",
+                        "message": "We couldn't find a submission with that ID. "
+                                   "Please check it and try again."}), 404
+
+    # Use the creator from the original decision, not from the request.
+    creator_id = history[0].get("creator_id", "unknown")
+
+    # Append-only: the original decision stays; the appeal is logged after it.
+    entry = audit.log_appeal(content_id=content_id,
+                             creator_id=creator_id,
+                             reasoning=reasoning.strip())
+
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
+        "content_id": content_id,
+        "status": entry.get("status", "under_review"),
+        "message": "Thanks. Your appeal has been recorded and this submission "
+                   "is now waiting for review by a person. The original result "
+                   "stays on file next to your explanation; nothing is changed "
+                   "automatically.",
+    })
 
 
 # ── Already works ─────────────────────────────────────────────────────────────
