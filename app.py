@@ -31,6 +31,8 @@ from flask import Flask, jsonify, request
 import audit
 import config
 
+import detector
+
 app = Flask(__name__)
 
 
@@ -149,6 +151,8 @@ def health():
 
 
 # ── YOU BUILD THIS ────────────────────────────────────────────────────────────
+def config_max_words():
+    return 10_000
 
 @app.post("/submit")
 # @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
@@ -199,17 +203,65 @@ def submit():
     what should this do when `text` is missing, empty, or enormous? A crash on
     a malformed input is one of the most common real failures there is.
     """
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "INVALID_TEXT",
+                        "message": "Send JSON with 'text' and 'creator_id'."}), 400
 
-    # TODO: delete this and build the route.
+    text = payload.get("text")
+    creator_id = payload.get("creator_id")
+
+    # Criterion 3: bad input gets a clear 4xx, never a crash.
+    if not isinstance(text, str):
+        return jsonify({"error": "INVALID_TEXT",
+                        "message": "'text' is required and must be a string."}), 400
+    if not text.strip():
+        return jsonify({"error": "EMPTY_TEXT",
+                        "message": "'text' is empty."}), 400
+    if not isinstance(creator_id, str) or not creator_id.strip():
+        return jsonify({"error": "INVALID_CREATOR",
+                        "message": "'creator_id' is required."}), 400
+
+    word_count = len(text.split())
+    if word_count > config_max_words():
+        return jsonify({"error": "TEXT_TOO_LONG",
+                        "message": f"Submissions are limited to {config_max_words():,} words; "
+                                   f"this one has {word_count:,}. Please split it up."}), 413
+
+    content_id = str(uuid.uuid4())
+
+    # Signal one: GPT-2 predictability. Higher = more likely AI.
+    model_score = float(detector.model_signal(text))
+
+    # Placeholders until Milestones 4 and 5.
+    style_score = 0.0
+    combined = model_score
+    guess = "unsure"
+    label = "placeholder label"
+    confidence = 0.5
+
+    audit.log_decision(
+        content_id=content_id,
+        creator_id=creator_id,
+        guess=guess,
+        model_score=model_score,
+        style_score=style_score,
+        combined_score=combined,
+        label=label,
+        status="decided",
+        word_count=word_count,
+    )
+
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /submit isn't built yet — see the TODO in app.py.",
-        "you_sent": {
-            "text_length": len(payload.get("text", "")),
-            "creator_id": payload.get("creator_id"),
-        },
-    }), 501
+        "content_id": content_id,
+        "guess": guess,
+        "confidence": round(confidence, 4),
+        "label": label,
+        "model_score": round(model_score, 4),
+        "style_score": round(style_score, 4),
+        "combined_score": round(combined, 4),
+        "status": "decided",
+    })
 
 
 @app.post("/appeal")
