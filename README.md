@@ -53,19 +53,19 @@
 
 ### Signal one — the model signal
 
-**What it measures:**
+**What it measures:** How predictable the text is to GPT-2. The model reads the text one token at a time, scores how likely each next word was, and averages that into perplexity. Low perplexity (few surprises) maps to a higher AI score.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** Language models generate text by choosing high-probability next words, so AI writing tends to be exactly what another model expects. Human writing has odd word choices, personal details, slang, and mistakes that surprise the model.
 
-**What it can't see:**
+**What it can't see:** Who actually wrote the text. It only sees predictability. Plain, careful, or formal human writing (for example, from a non-native English speaker or in a formal report) is predictable and can be wrongly flagged as AI. That is the false positive this system most needs to avoid. In the other direction, AI text with typos, rare synonyms, or a "casual" rewrite becomes less predictable and can pass as human. On very short text, a single unusual word swings the score, so the result is unreliable.
 
 ### Signal two — the style signal
 
-**What it measures:**
+**What it measures:** The shape of the text, not its meaning. Three features: how much sentence lengths vary (spread), the ratio of unique words to total words (vocabulary variety), and how much punctuation is used per word. These are combined into one 0–1 score where higher means more likely AI.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** AI writing tends to be uniform: sentences of similar length, safe repeated vocabulary, and steady, conventional punctuation. Human writing is burstier. It mixes short and long sentences, uses more varied or unusual words, and has irregular punctuation (dashes, ellipses, fragments).
 
-**What it can't see:**
+**What it can't see:** Meaning or authorship. Any human who writes in an even, disciplined style (formal essays, technical writing, a careful non-native speaker) looks "AI-like" on these numbers. And AI text can be made to look human just by varying sentence length or adding punctuation, without changing a word of substance. It is also unreliable on short text: a two-line poem has too few sentences to measure spread at all.
 
 ### The combining rule
 
