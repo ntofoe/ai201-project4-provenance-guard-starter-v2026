@@ -33,6 +33,9 @@ import config
 
 import detector
 
+import scoring
+import stylometry
+
 app = Flask(__name__)
 
 
@@ -233,9 +236,13 @@ def submit():
     # Signal one: GPT-2 predictability. Higher = more likely AI.
     model_score = float(detector.model_signal(text))
 
-    # Placeholders until Milestones 4 and 5.
-    style_score = 0.0
-    combined = model_score
+    # Signal two: style. Higher = more likely AI.
+    style_score = float(stylometry.style_signal(text))
+
+    # Combine both signals. The rule lives in scoring.py::combine_signals.
+    combined = float(scoring.combine_signals(model_score, style_score))
+
+    # Placeholders until Milestone 5.
     guess = "unsure"
     label = "placeholder label"
     confidence = 0.5
