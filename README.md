@@ -100,9 +100,11 @@ If the writer disagrees, `POST /appeal` with the `content_id` and their `reasoni
 | Sample | Model | Style | Combined |
 |---|---|---|---|
 | Clearly AI | 0.908 | 0.700 | 0.804 |
-| Clearly human (casual) | 0.227 | 0.000 | 0.114 |
+| "Clearly human" (casual) **(AI-written; see note)** | 0.227 | 0.000 | 0.114 |
 | **Formal human: my own grad school statement of purpose** | 0.893 | 0.636 | **0.765** |
 | Lightly edited AI | 0.655 | 0.679 | 0.667 |
+
+*Correction (Unit 8): the casual "clearly human" sample was written by Claude in a casual style, not by a person. It shows the human label is reachable, but it is not evidence about real human writing. In Unit 8, criterion 2's human group uses only my own writing.*
 
 My own honest writing scored only 0.04 below clearly AI text, and *higher* than lightly edited AI. Both signals fail the same way on polished, formal prose, so combining them does not cancel the error. At the slides' default of 0.78, I would be one small difference away from being accused on my own application. A threshold of 0.85 keeps my writing in "unsure" with a real margin. The cost: ordinary AI text like sample 1 also lands in "unsure." Only very bland, repetitive AI text reached the AI label in my tests (0.93).
 
@@ -224,6 +226,20 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
 - *What I asked for:* After running my four calibration samples, I asked Claude to explain the trade-offs between a strict threshold (0.85), a tight one (0.80), and an agreement rule.
 - *What came back:* It pointed out that my own statement of purpose scored 0.765, only 0.04 below clearly AI text, so no threshold cleanly separates them. A 0.80 threshold would pass my writing by a fragile margin, and an agreement rule would just be tuning to two data points. It recommended the strict option as the only one consistent with my 0-false-positive criterion.
 - *What I changed:* I chose 0.85 (strict) instead of the slides' default of 0.78, and I wrote the cost into my README honestly: ordinary AI text now lands in "unsure."
+
+**Unit 8, Moment 3: diagnosing the crash**
+
+- *What I asked for:* After the attack run, I asked Claude why MF02 (a single character) returned a 500.
+- *What came back:* Its first guess was that the detector malfunctioned. The traceback I pulled from the service showed something more specific: the detector raised `ValueError` *on purpose* for too-short text, and the real fault was that my route called it before checking length.
+- *What I changed:* I wrote the diagnosis as a route-stage problem, not a detector bug, and moved the short-text check ahead of the signals as my one improvement.
+
+**Unit 8, Moment 4: choosing the improvement**
+
+- *What I asked for:* Before choosing between fixing the crash and reweighting the signals, I asked to see the per-signal numbers rather than take a recommendation.
+- *What came back:* A weight sweep on my own data. The median gap stayed between 0.213 and 0.232 at every weight, and higher model weight pushed my own writing closer to being accused.
+- *What I changed:* I chose input validation, and put criterion 2 in What's Still Broken as a signal-level limit.
+
+Claude also wrote the helper scripts (`summarize_eval.py`, `appeal_test.py`, `calibrate.py`), the five AI samples in `scenarios.py`, and first drafts of the Unit 8 README sections. The ten human samples in `scenarios.py` are my own writing. Claude flagged that its earlier "clearly human" ramen sample was AI-written, which led to the correction above.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
@@ -430,38 +446,90 @@ trial 3: 5/5 appeals recorded; unknown id -> http 404
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** One thing, in `app.py::submit`. Text under 25 words is now decided **before** either signal runs: it gets the "unsure" label with confidence 0.0 and `null` signal scores, and is logged like any other decision. Before, both signals ran on all text and the under-25-word rule only overrode the label afterwards. Nothing else changed: weights, thresholds, label text, and every 25+ word path are identical. The change is its own commit ("Unit 8 improvement: decide short text (<25 words) before the signals run").
 
-**Which diagnosis pointed at it:**
+**Which diagnosis pointed at it:** Criterion 3's miss and attack MF02. Both had the same stage and mechanism: the route called `detector.model_signal` on 1-token text, the detector raised `ValueError`, and the route turned it into a 500 with no audit entry. I considered reweighting the signals instead, to address criterion 2, but a weight sweep on my own data showed the median gap never exceeds 0.232 at any weight (see Run Log). So that diagnosis points at the signals themselves, not something one setting can fix.
 
 ### Attack Run — After
 
-<!-- Same format. `run_attacks.py --label after` -->
+Report: `results/attack_run_2026-11-04_2019_after.md`. Same 56 attacks, same marking rule. The service was restarted first so the rate limiter started fresh, as in the before-run.
 
+**Result: before 52 HELD / 4 BROKE → after 53 HELD / 3 BROKE.** Only MF02 changed.
 
+| ID | Targeting | Before | After | Change |
+|---|---|---|---|---|
+| EV01 | signal two: typos raise word variety | 200 unsure, HELD | 200 unsure, HELD | — |
+| EV02 | signal two: broken-up sentences raise length spread | 200 **human, BROKE** | 200 **human, BROKE** | — |
+| EV03 | signal two: a pasted quotation changes the shape | 200 unsure, HELD | 200 unsure, HELD | — |
+| EV04 | signal one: unusual words raise perplexity | 200 unsure, HELD | 200 unsure, HELD | — |
+| EV05 | both signals: heavy human editing pass | 200 **human, BROKE** | 200 **human, BROKE** | — |
+| EV06 | signal two: one very long sentence and one very short | 200 unsure, HELD | 200 unsure, HELD | — |
+| EV07 | signal two: padding with punctuation | 200 unsure, HELD | 200 unsure, HELD | — |
+| EV08 | signal one: text below the token window | 200 unsure, HELD | 200 unsure, HELD | — |
+| EV09 | both: AI text with a human opening paragraph bolted on | 200 unsure, HELD | 200 unsure, HELD | — |
+| EV10 | signal two: repeated stanza structure | 200 ai, HELD | 200 ai, HELD | — |
+| FP01–FP08 | false-positive attacks (8 rows) | 200 unsure, HELD (all 8) | 200 unsure, HELD (all 8) | — |
+| PI01, PI03–PI06 | prompt injection (5 rows) | 200 unsure, HELD (all 5) | 200 unsure, HELD (all 5) | — |
+| PI02 | instruction disguised as a system message | 200 **human, BROKE** | 200 **human, BROKE** | — |
+| MF01 | text is only whitespace | 400, HELD | 400, HELD | — |
+| **MF02** | **text is a single character** | **500, BROKE** | **200 unsure, HELD** | **fixed** |
+| MF03–MF07 | control chars, punctuation, long word, emoji, RTL script | 200 unsure, HELD (all 5) | 200 unsure, HELD (all 5) | scores now `null` |
+| MF08 | text is 60,000 characters | 413, HELD | 413, HELD | — |
+| RQ01–RQ12 | malformed requests (12 rows) | 400, HELD (all 12) | 400, HELD (all 12) | — |
+| FL01_01–10 | 20 rapid submissions from one creator | 200, HELD | 200, HELD | — |
+| FL01_11–12 | 20 rapid submissions from one creator | 429, HELD | 429, HELD | — |
 
-**Did it help, and how do I know:**
+### Run Log — After
 
-<!-- Widening the unsure band usually fixes one problem and creates another.
-     Reporting that trade honestly is worth full credit. -->
+Report: `results/run_2026-11-04_2020_after.md`, `results/appeal_test_after.txt`.
 
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Before | After |
+|---|---|---|---|---|---|---|
+| 1. My own writing labeled AI | 0 of 10 | 0/10 | 0/10 | 0/10 | MET | **MET** |
+| 2. Median gap, AI minus human | ≥ 0.30 | 0.219 | 0.219 | 0.219 | MISSED | **MISSED** |
+| 3. Bad input, 5 of 5 per case | 4 of 4 cases | 4 of 4 | 4 of 4 | 4 of 4 | MISSED | **MET** |
+| 4. Appeals recorded; unknown id → 404 | 5 of 5 | 5/5 | 5/5 | 5/5 | MET | **MET** |
+| 5. All three labels reachable | 3 of 3 | 3/3 | 3/3 | 3/3 | MET | **MET** |
 
+`bad_short`, the only scenario that changed, after the fix, from `summarize_eval.py`:
+
+```
+bad_short        trial 1  status [200, 200, 200, 200, 200]
+bad_short        trial 2  status [200, 200, 200, 200, 200]
+bad_short        trial 3  status [200, 200, 200, 200, 200]
+```
+
+Every other number in the after-run matches the before-run exactly, including the 0.219 median gap. That's how I know nothing else moved.
+
+**Did it help, and how do I know:** Yes, for exactly what it targeted. The short-text crash is gone (MF02: 500 → 200; criterion 3: missed → met), short submissions now get an `content_id` they can appeal with, and they now leave an audit entry (before, MF02 left zero). It did nothing for the signal-level failures (criterion 2, EV02, EV05, PI02), which is expected, since they were never input problems.
+
+**What it cost:** short submissions now carry no signal scores at all. If a reviewer asks "what did the detector make of this 10-word poem?", the log can't say. And any AI text under 25 words is now *guaranteed* "unsure," without the signals even looking. That's an evasion route I opened deliberately (it's EV08's idea, "text below the token window," taken to its limit). I accept it, because a signal reading on 10 words was noise anyway, and the alternative was crashing on real writers.
 
 ---
 
 ## What's Still Broken
 
-<!-- For each attack still getting through and each criterion still missed:
-     what you'd do, and why you stopped. -->
+**Attacks still getting through**
 
+- **EV02 (broken-up sentences labeled human).** *What I'd do:* stop treating sentence-length spread as evidence of a human. It's the cheapest thing to fake. I'd either cap its contribution or replace it with something harder to game, like variation in sentence *structure* rather than length. *Why I stopped:* that's a redesign of signal two, and this unit allows one change. I spent mine on the crash.
+- **EV05 (heavily edited AI labeled human).** *What I'd do:* probably nothing at the detector level. If a person rewrote most of the text, calling it human may be closer to right than wrong. A platform that cares about this needs a policy on AI-assisted writing, not a better threshold. *Why I stopped:* I don't think it's a detector problem.
+- **PI02 (fake system message labeled human).** *What I'd do:* strip markup-like tokens ("SYSTEM:", brackets, role tags) before scoring, so formatting can't masquerade as human irregularity, and stop counting colons and brackets as "expressive" punctuation in `stylometry.py`. *Why I stopped:* it's a change to signal two plus preprocessing, two changes beyond my one.
+- **The seven evasions that landed in "unsure."** These are HELD under my marking rule, but by the attack set's goal they succeeded. *What I'd do:* nothing with the threshold. Lowering 0.85 to catch them would start accusing my own writing (0.774 at worst). *Why I stopped:* it's the trade I chose on purpose; see below.
 
+**Criteria still missed**
+
+- **Criterion 2 (median gap 0.219, target 0.30).** *What I'd do:* add a third signal that measures something other than surface regularity, for example comparing the text against a second, different language model, or measuring how the text's predictability *varies* across sentences rather than its average. Reweighting can't fix it: my sweep showed the gap stays between 0.213 and 0.232 at every weight. *Why I stopped:* a new signal is a stretch feature and more than one change. I'm not revising the criterion either, because it was measurable and I simply missed it.
+
+**Other weaknesses I found along the way**
+
+- **The rate limit is easy to dodge.** It keys on `creator_id`, which the caller makes up, so a script that changes it every request is never limited. *Fix:* add a per-IP limit alongside the per-creator one, or require authenticated accounts.
+- **Debug mode leaks internals.** Before the fix, the crash returned a Werkzeug debugger page with my stack trace. *Fix:* run with `DEBUG = False` and a production server (gunicorn is already in `requirements.txt`) anywhere outside my laptop.
+- **The log doesn't store the submitted text.** That made the log-injection attack (PI05) harmless, but it also means a reviewer handling an appeal can't reread what was submitted from the log alone. *Fix:* store a hash of the text in the log and the text itself in a separate store with access controls.
+- **Signal one reads only the first ~300 words** (`DETECTOR_MAX_TOKENS = 400`). AI text placed after 300 human words is never scored by it.
 
 **The trade I'd make if this ran for real:**
 
-<!-- Two sentences. Fewer wrong accusations means more AI text getting through.
-     Say which way you'd go and WHO PAYS FOR IT. -->
-
-
+I would keep the strict threshold and let more AI text through as "unsure," because a false accusation lands on one real person, while a missed detection is spread thinly across the platform. The people who pay for that choice are honest writers competing against undetected AI-assisted work, and readers who trust a "human" label that can be gamed. I'd rather they pay than the writer whose own statement of purpose scored 0.765.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 
