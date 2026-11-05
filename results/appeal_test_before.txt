@@ -1,0 +1,21 @@
+trial 1 appeal 1: http 200, status under_review, logged True -> PASS
+trial 1 appeal 2: http 200, status under_review, logged True -> PASS
+trial 1 appeal 3: http 200, status under_review, logged True -> PASS
+trial 1 appeal 4: http 200, status under_review, logged True -> PASS
+trial 1 appeal 5: http 200, status under_review, logged True -> PASS
+trial 1: 5/5 appeals recorded; unknown id -> http 404
+
+trial 2 appeal 1: http 200, status under_review, logged True -> PASS
+trial 2 appeal 2: http 200, status under_review, logged True -> PASS
+trial 2 appeal 3: http 200, status under_review, logged True -> PASS
+trial 2 appeal 4: http 200, status under_review, logged True -> PASS
+trial 2 appeal 5: http 200, status under_review, logged True -> PASS
+trial 2: 5/5 appeals recorded; unknown id -> http 404
+
+trial 3 appeal 1: http 200, status under_review, logged True -> PASS
+trial 3 appeal 2: http 200, status under_review, logged True -> PASS
+trial 3 appeal 3: http 200, status under_review, logged True -> PASS
+trial 3 appeal 4: http 200, status under_review, logged True -> PASS
+trial 3 appeal 5: http 200, status under_review, logged True -> PASS
+trial 3: 5/5 appeals recorded; unknown id -> http 404
+
