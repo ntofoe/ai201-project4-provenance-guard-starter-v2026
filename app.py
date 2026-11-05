@@ -240,26 +240,20 @@ def submit():
     
     content_id = str(uuid.uuid4())
 
-    # Signal one: GPT-2 predictability. Higher = more likely AI.
-    model_score = float(detector.model_signal(text))
-
-    # Signal two: style. Higher = more likely AI.
-    style_score = float(stylometry.style_signal(text))
-
-    # Combine both signals. The rule lives in scoring.py::combine_signals.
-    combined = float(scoring.combine_signals(model_score, style_score))
-
-    # Milestone 5: turn the combined score into a guess and a label.
-    guess, label = scoring.score_to_label(combined)
-
-    # Confidence = how far the score sits from a coin flip (0.5), on 0-1.
-    # 0.0 means "no idea"; 1.0 means the score is at an extreme.
-    confidence = abs(combined - 0.5) * 2
-
-    # Criterion 3: under 25 words is too short to judge. Never accuse.
+    # Unit 8 improvement: short text is decided BEFORE the signals run.
+    # Before: the detector raised ValueError on very short text ("a", "Hello"),
+    # the route returned a 500 debug page, and nothing reached the audit log (MF02).
+    # The label outcome for short text is unchanged: it was already "unsure".
     if word_count < 25:
+        model_score = style_score = combined = None
         guess, label = "unsure", scoring.LABEL_UNSURE
         confidence = 0.0
+    else:
+        model_score = float(detector.model_signal(text))
+        style_score = float(stylometry.style_signal(text))
+        combined = float(scoring.combine_signals(model_score, style_score))
+        guess, label = scoring.score_to_label(combined)
+        confidence = abs(combined - 0.5) * 2
 
     audit.log_decision(
         content_id=content_id,
@@ -273,14 +267,17 @@ def submit():
         word_count=word_count,
     )
 
+    def r(x):
+        return None if x is None else round(x, 4)
+
     return jsonify({
         "content_id": content_id,
         "guess": guess,
         "confidence": round(confidence, 4),
         "label": label,
-        "model_score": round(model_score, 4),
-        "style_score": round(style_score, 4),
-        "combined_score": round(combined, 4),
+        "model_score": r(model_score),
+        "style_score": r(style_score),
+        "combined_score": r(combined),
         "status": "decided",
     })
 
