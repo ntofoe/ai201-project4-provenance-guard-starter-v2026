@@ -157,8 +157,15 @@ def health():
 def config_max_words():
     return 10_000
 
+def _reject(creator_id, error, message, status_code, **extra):
+    """Log a refused request, then return the error. Nothing refused goes untraced."""
+    who = creator_id if isinstance(creator_id, str) and creator_id.strip() else "unknown"
+    audit.log_rejection(creator_id=who, reason=error, http_status=status_code, **extra)
+    return jsonify({"error": error, "message": message}), status_code
+
+
 @app.post("/submit")
-# @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
+@limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
 def submit():
     """
     Take a piece of text, decide about it, log the decision, answer.
@@ -206,31 +213,31 @@ def submit():
     what should this do when `text` is missing, empty, or enormous? A crash on
     a malformed input is one of the most common real failures there is.
     """
+
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
-        return jsonify({"error": "INVALID_TEXT",
-                        "message": "Send JSON with 'text' and 'creator_id'."}), 400
+        return _reject(None, "INVALID_TEXT",
+                       "Send JSON with 'text' and 'creator_id'.", 400)
 
     text = payload.get("text")
     creator_id = payload.get("creator_id")
 
-    # Criterion 3: bad input gets a clear 4xx, never a crash.
+    # Criterion 3: bad input gets a clear 4xx, never a crash, and is logged.
     if not isinstance(text, str):
-        return jsonify({"error": "INVALID_TEXT",
-                        "message": "'text' is required and must be a string."}), 400
+        return _reject(creator_id, "INVALID_TEXT",
+                       "'text' is required and must be a string.", 400)
     if not text.strip():
-        return jsonify({"error": "EMPTY_TEXT",
-                        "message": "'text' is empty."}), 400
+        return _reject(creator_id, "EMPTY_TEXT", "'text' is empty.", 400)
     if not isinstance(creator_id, str) or not creator_id.strip():
-        return jsonify({"error": "INVALID_CREATOR",
-                        "message": "'creator_id' is required."}), 400
+        return _reject(creator_id, "INVALID_CREATOR", "'creator_id' is required.", 400)
 
     word_count = len(text.split())
     if word_count > config_max_words():
-        return jsonify({"error": "TEXT_TOO_LONG",
-                        "message": f"Submissions are limited to {config_max_words():,} words; "
-                                   f"this one has {word_count:,}. Please split it up."}), 413
-
+        return _reject(creator_id, "TEXT_TOO_LONG",
+                       f"Submissions are limited to {config_max_words():,} words; "
+                       f"this one has {word_count:,}. Please split it up.",
+                       413, word_count=word_count)
+    
     content_id = str(uuid.uuid4())
 
     # Signal one: GPT-2 predictability. Higher = more likely AI.
