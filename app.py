@@ -177,7 +177,8 @@ def _elapsed_ms():
 def _reject(creator_id, error, message, status_code, **extra):
     """Log a refused request, then return the error. Nothing refused goes untraced."""
     who = creator_id if isinstance(creator_id, str) and creator_id.strip() else "unknown"
-    audit.log_rejection(creator_id=who, reason=error, http_status=status_code, **extra)
+    audit.log_rejection(creator_id=who, reason=error, http_status=status_code,
+                        duration_ms=_elapsed_ms(), **extra)
     return jsonify({"error": error, "message": message}), status_code
 
 
@@ -412,7 +413,18 @@ def main():
     print(f"Provenance Guard on http://{config.HOST}:{config.PORT}")
     print(f"  detector model:  {config.DETECTOR_MODEL}")
     print(f"  rate limiting:   {'ON' if config.RATE_LIMITING_ENABLED else 'off (unit 8)'}")
-    print(f"  audit log:       {config.AUDIT_LOG}")
+    print(f"  fault injection: {'ON (testing only)' if config.FAULT_INJECTION_ENABLED else 'off'}")
+
+    # Capstone: load GPT-2 before serving, so the first real request isn't
+    # timed out by the signal limit while the model loads from disk.
+    # Under the debug reloader main() runs twice; only the serving process warms up.
+    import os
+    if not config.DEBUG or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        t0 = time.perf_counter()
+        detector.model_signal(
+            "This is a short warm-up passage. It loads the model into memory "
+            "before the service accepts real submissions from writers.")
+        print(f"  model warm-up:   {round((time.perf_counter() - t0) * 1000)} ms")
     print()
     print("Check it's alive:")
     print(f'  curl -X POST http://{config.HOST}:{config.PORT}/ping \\')
