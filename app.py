@@ -36,6 +36,13 @@ import detector
 import scoring
 import stylometry
 
+import hashlib
+import time
+
+from flask import g
+
+import guard
+
 app = Flask(__name__)
 
 
@@ -157,6 +164,16 @@ def health():
 def config_max_words():
     return 10_000
 
+@app.before_request
+def _start_timer():
+    g.t0 = time.perf_counter()
+
+
+def _elapsed_ms():
+    t0 = g.get("t0")
+    return None if t0 is None else round((time.perf_counter() - t0) * 1000, 1)
+
+
 def _reject(creator_id, error, message, status_code, **extra):
     """Log a refused request, then return the error. Nothing refused goes untraced."""
     who = creator_id if isinstance(creator_id, str) and creator_id.strip() else "unknown"
@@ -244,27 +261,53 @@ def submit():
     # Before: the detector raised ValueError on very short text ("a", "Hello"),
     # the route returned a 500 debug page, and nothing reached the audit log (MF02).
     # The label outcome for short text is unchanged: it was already "unsure".
+        # Capstone (Shape B): every signal call goes through guard.run_signal,
+    # which enforces a time limit and catches errors. If either signal fails,
+    # nothing is decided from a half-computed result: the answer is "unsure".
+    fault = request.headers.get("X-Fault") if config.FAULT_INJECTION_ENABLED else None
+    failures = []
+    model_ms = style_ms = None
+
     if word_count < 25:
         model_score = style_score = combined = None
         guess, label = "unsure", scoring.LABEL_UNSURE
         confidence = 0.0
     else:
-        model_score = float(detector.model_signal(text))
-        style_score = float(stylometry.style_signal(text))
-        combined = float(scoring.combine_signals(model_score, style_score))
-        guess, label = scoring.score_to_label(combined)
-        confidence = abs(combined - 0.5) * 2
+        model_score, model_fail, model_ms = guard.run_signal(
+            "model", detector.model_signal, text, fault)
+        style_score, style_fail, style_ms = guard.run_signal(
+            "style", stylometry.style_signal, text, fault)
+        failures = [f for f in (model_fail, style_fail) if f]
+
+        if failures:
+            combined = None
+            guess, label = "unsure", scoring.LABEL_UNSURE
+            confidence = 0.0
+        else:
+            combined = float(scoring.combine_signals(model_score, style_score))
+            guess, label = scoring.score_to_label(combined)
+            confidence = abs(combined - 0.5) * 2
 
     audit.log_decision(
-        content_id=content_id,
-        creator_id=creator_id,
-        guess=guess,
-        model_score=model_score,
-        style_score=style_score,
-        combined_score=combined,
-        label=label,
-        status="decided",
-        word_count=word_count,
+    content_id=content_id,
+    creator_id=creator_id,
+    guess=guess,
+    model_score=model_score,
+    style_score=style_score,
+    combined_score=combined,
+    label=label,
+    status="decided",
+    word_count=word_count,
+    # Capstone instrumentation
+    char_count=len(text),
+    text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest()[:16],
+    text_preview=text[:80],
+    degraded=bool(failures),
+    failures=failures,
+    fault_injected=fault,
+    model_ms=model_ms,
+    style_ms=style_ms,
+    duration_ms=_elapsed_ms(),
     )
 
     def r(x):
@@ -279,6 +322,9 @@ def submit():
         "style_score": r(style_score),
         "combined_score": r(combined),
         "status": "decided",
+        "degraded": bool(failures),
+        # Which signal failed and how; never the raw error text, which stays in the log.
+        "failures": [{"signal": f["signal"], "kind": f["kind"]} for f in failures],
     })
 
 
