@@ -566,4 +566,25 @@ I would keep the strict threshold and let more AI text through as "unsure," beca
 
 ---
 
+
+
+
+---
+
+## Capstone
+
+**What This Extends**
+
+Provenance Guard, the AI-writing detector service from Units 7–8 (same repository). What's new is a failure-handling layer around the two signals. Before this unit, if `detector.model_signal` or `stylometry.style_signal` raised an error or hung, `/submit` returned a 500 or stalled, and the failure left no audit entry. The only bad path that was protected was text under 25 words, which Unit 8 fixed by checking length first.
+
+**The Shape**
+
+Shape B: harden against failure. Every signal call in `app.py::submit` now goes through one wrapper, `run_signal`, that runs the signal with a time limit and catches any error. If a signal fails or runs past its limit, `/submit` still returns HTTP 200 with the "unsure" label (no accusation is possible on a result the system couldn't compute), and the audit log records which signal failed, how it failed, and how long the request took. Failures can be triggered on purpose through a setting in `config.py`, so the bad path is testable.
+
+Out of scope, decided before building:
+- No new signal, and no changes to weights, thresholds, or label text. The scoring that Unit 8 measured stays exactly as it was.
+- No hosting. The service loads GPT-2 locally (~550 MB), which won't fit a 512 MB free host, so it runs locally (Path B).
+- No rate-limit changes, even though Unit 8 found the limiter can be dodged by changing `creator_id`.
+- The time limit stops *waiting* for a slow signal; it doesn't kill the computation. Stopping a running PyTorch call cleanly is out of scope.
+
 📖 **How to run this project: [RUNNING.md](RUNNING.md)**
