@@ -108,3 +108,19 @@ RATE_LIMIT_STORAGE = "memory://"
 LOG_DIR = ROOT / "logs"
 AUDIT_LOG = LOG_DIR / "audit.jsonl"
 RESULTS_DIR = ROOT / "results"
+
+
+# ── Capstone: signal failure handling (Shape B) ──────────────────────────────
+# How long /submit waits for one signal before giving up on it. A warm GPT-2
+# call takes a second or two, so 5s leaves room without letting a stuck
+# signal hold a request for long.
+SIGNAL_TIMEOUT_SECONDS = 5.0
+
+# Worker threads that run signals. A timed-out signal keeps running in the
+# background and holds its worker until it finishes.
+SIGNAL_WORKERS = 4
+
+# Fault injection: lets a request header force a signal to fail, for testing.
+# OFF unless the service is started with AI201_FAULTS=1.
+FAULT_INJECTION_ENABLED = os.getenv("AI201_FAULTS", "0") == "1"
+FAULT_SLOW_SECONDS = SIGNAL_TIMEOUT_SECONDS * 3
