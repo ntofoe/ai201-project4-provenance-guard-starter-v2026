@@ -1,3 +1,63 @@
+# Running Provenance Guard: Capstone (Path B, local with logs)
+
+This service loads GPT-2 locally (~550 MB), which doesn't fit a 512 MB free host,
+so it runs on your machine. Tested on macOS, Python 3.12.3.
+
+## Start it (one command, after setup)
+
+```bash
+python app.py
+```
+
+To run with fault injection on (for testing the failure paths only):
+
+```bash
+AI201_FAULTS=1 python app.py
+```
+
+## Setup, from a clean clone
+
+```bash
+git clone https://github.com/ntofoe/ai201-project4-provenance-guard-starter-v2026
+cd ai201-project4-provenance-guard-starter-v2026
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python test.py
+```
+
+## What the environment needs
+
+- **Python:** 3.12 (tested on 3.12.3)
+- **Dependencies:** pinned in `requirements.txt` (Flask, Flask-Limiter, transformers, torch, and others)
+- **Model:** GPT-2, about 548 MB, downloaded automatically from Hugging Face on first start
+  and cached in `~/.cache/huggingface/`. First start takes longer while it downloads.
+- **Memory:** at least 2 GB free
+- **Ports:** the service listens on `http://127.0.0.1:5000`
+
+## Check it's running
+
+On startup the banner prints `model warm-up: ... ms`. That means GPT-2 is loaded
+and the first request won't time out. Then, in a second terminal (venv activated):
+
+```bash
+curl http://127.0.0.1:5000/health
+curl -X POST http://127.0.0.1:5000/submit -H "Content-Type: application/json" \
+  -d '{"text": "Write at least twenty-five words here so the service scores the text instead of returning unsure for short input automatically.", "creator_id": "check"}'
+```
+
+## Where the record of it running goes
+
+Every request (decisions, rejections, and failures) is appended to `logs/audit.jsonl`
+as one JSON record per line. Read the latest with:
+
+```bash
+curl "http://127.0.0.1:5000/log?limit=10"
+```
+
+---
+
 # Running Provenance Guard
 
 Everything about how the starter works.
