@@ -1,0 +1,125 @@
+{
+  "table": {
+    "5": [
+      "2/2",
+      "2/2",
+      "2/2"
+    ]
+  },
+  "raw": [
+    {
+      "trial": 1,
+      "criterion": 5,
+      "header": "model_error",
+      "status": 200,
+      "secs": 0.438,
+      "resp": {
+        "combined_score": 0.7648,
+        "confidence": 0.5295,
+        "content_id": "68b2b737-45ec-4a81-82d1-9458d5d188ff",
+        "degraded": false,
+        "failures": [],
+        "guess": "unsure",
+        "label": "Our automated check couldn't tell whether this was written by a person or with help from AI. That's common: careful, formal, or short writing often lands here, and it is not a judgment about you or your work. Nothing happens to your submission because of this result. If you'd like a person to look at it, you can request a review.",
+        "model_score": 0.8931,
+        "status": "decided",
+        "style_score": 0.6364
+      }
+    },
+    {
+      "trial": 1,
+      "criterion": 5,
+      "header": "model_slow",
+      "status": 200,
+      "secs": 0.406,
+      "resp": {
+        "combined_score": 0.7648,
+        "confidence": 0.5295,
+        "content_id": "1bf7ab2e-8ee1-4608-9228-2f9cd380a591",
+        "degraded": false,
+        "failures": [],
+        "guess": "unsure",
+        "label": "Our automated check couldn't tell whether this was written by a person or with help from AI. That's common: careful, formal, or short writing often lands here, and it is not a judgment about you or your work. Nothing happens to your submission because of this result. If you'd like a person to look at it, you can request a review.",
+        "model_score": 0.8931,
+        "status": "decided",
+        "style_score": 0.6364
+      }
+    },
+    {
+      "trial": 2,
+      "criterion": 5,
+      "header": "model_error",
+      "status": 200,
+      "secs": 0.432,
+      "resp": {
+        "combined_score": 0.7648,
+        "confidence": 0.5295,
+        "content_id": "78d49386-108b-4745-b43d-d129f9718433",
+        "degraded": false,
+        "failures": [],
+        "guess": "unsure",
+        "label": "Our automated check couldn't tell whether this was written by a person or with help from AI. That's common: careful, formal, or short writing often lands here, and it is not a judgment about you or your work. Nothing happens to your submission because of this result. If you'd like a person to look at it, you can request a review.",
+        "model_score": 0.8931,
+        "status": "decided",
+        "style_score": 0.6364
+      }
+    },
+    {
+      "trial": 2,
+      "criterion": 5,
+      "header": "model_slow",
+      "status": 200,
+      "secs": 0.405,
+      "resp": {
+        "combined_score": 0.7648,
+        "confidence": 0.5295,
+        "content_id": "eca7ad7d-79e9-40cf-b3ae-6fea855ae1b2",
+        "degraded": false,
+        "failures": [],
+        "guess": "unsure",
+        "label": "Our automated check couldn't tell whether this was written by a person or with help from AI. That's common: careful, formal, or short writing often lands here, and it is not a judgment about you or your work. Nothing happens to your submission because of this result. If you'd like a person to look at it, you can request a review.",
+        "model_score": 0.8931,
+        "status": "decided",
+        "style_score": 0.6364
+      }
+    },
+    {
+      "trial": 3,
+      "criterion": 5,
+      "header": "model_error",
+      "status": 200,
+      "secs": 0.406,
+      "resp": {
+        "combined_score": 0.7648,
+        "confidence": 0.5295,
+        "content_id": "47c6e097-4487-4df2-909f-3d056810e96c",
+        "degraded": false,
+        "failures": [],
+        "guess": "unsure",
+        "label": "Our automated check couldn't tell whether this was written by a person or with help from AI. That's common: careful, formal, or short writing often lands here, and it is not a judgment about you or your work. Nothing happens to your submission because of this result. If you'd like a person to look at it, you can request a review.",
+        "model_score": 0.8931,
+        "status": "decided",
+        "style_score": 0.6364
+      }
+    },
+    {
+      "trial": 3,
+      "criterion": 5,
+      "header": "model_slow",
+      "status": 200,
+      "secs": 0.411,
+      "resp": {
+        "combined_score": 0.7648,
+        "confidence": 0.5295,
+        "content_id": "99ddfb34-99b3-4040-880c-8b693778d8d0",
+        "degraded": false,
+        "failures": [],
+        "guess": "unsure",
+        "label": "Our automated check couldn't tell whether this was written by a person or with help from AI. That's common: careful, formal, or short writing often lands here, and it is not a judgment about you or your work. Nothing happens to your submission because of this result. If you'd like a person to look at it, you can request a review.",
+        "model_score": 0.8931,
+        "status": "decided",
+        "style_score": 0.6364
+      }
+    }
+  ]
+}

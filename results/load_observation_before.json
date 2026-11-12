@@ -1,0 +1,114 @@
+[
+  {
+    "kind": "slow",
+    "secs": 10.03,
+    "degraded": true,
+    "failures": [
+      {
+        "kind": "timeout",
+        "signal": "model"
+      },
+      {
+        "kind": "timeout",
+        "signal": "style"
+      }
+    ],
+    "guess": "unsure"
+  },
+  {
+    "kind": "slow",
+    "secs": 10.03,
+    "degraded": true,
+    "failures": [
+      {
+        "kind": "timeout",
+        "signal": "model"
+      },
+      {
+        "kind": "timeout",
+        "signal": "style"
+      }
+    ],
+    "guess": "unsure"
+  },
+  {
+    "kind": "slow",
+    "secs": 10.03,
+    "degraded": true,
+    "failures": [
+      {
+        "kind": "timeout",
+        "signal": "model"
+      },
+      {
+        "kind": "timeout",
+        "signal": "style"
+      }
+    ],
+    "guess": "unsure"
+  },
+  {
+    "kind": "slow",
+    "secs": 10.03,
+    "degraded": true,
+    "failures": [
+      {
+        "kind": "timeout",
+        "signal": "model"
+      },
+      {
+        "kind": "timeout",
+        "signal": "style"
+      }
+    ],
+    "guess": "unsure"
+  },
+  {
+    "kind": "healthy",
+    "secs": 10.01,
+    "degraded": true,
+    "failures": [
+      {
+        "kind": "timeout",
+        "signal": "model"
+      },
+      {
+        "kind": "timeout",
+        "signal": "style"
+      }
+    ],
+    "guess": "unsure"
+  },
+  {
+    "kind": "healthy",
+    "secs": 10.01,
+    "degraded": true,
+    "failures": [
+      {
+        "kind": "timeout",
+        "signal": "model"
+      },
+      {
+        "kind": "timeout",
+        "signal": "style"
+      }
+    ],
+    "guess": "unsure"
+  },
+  {
+    "kind": "healthy",
+    "secs": 10.01,
+    "degraded": true,
+    "failures": [
+      {
+        "kind": "timeout",
+        "signal": "model"
+      },
+      {
+        "kind": "timeout",
+        "signal": "style"
+      }
+    ],
+    "guess": "unsure"
+  }
+]

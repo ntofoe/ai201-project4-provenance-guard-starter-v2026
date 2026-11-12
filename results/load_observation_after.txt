@@ -1,0 +1,9 @@
+{"kind": "healthy", "secs": 1.03, "degraded": false, "failures": [], "guess": "unsure"}
+{"kind": "healthy", "secs": 1.03, "degraded": false, "failures": [], "guess": "unsure"}
+{"kind": "healthy", "secs": 1.03, "degraded": false, "failures": [], "guess": "unsure"}
+{"kind": "slow", "secs": 5.02, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}], "guess": "unsure"}
+{"kind": "slow", "secs": 5.03, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}], "guess": "unsure"}
+{"kind": "slow", "secs": 5.03, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}], "guess": "unsure"}
+{"kind": "slow", "secs": 5.03, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}], "guess": "unsure"}
+
+healthy requests degraded: 0 of 3
