@@ -1,0 +1,15 @@
+10 runs, 225 words each, degraded in 0 of 10
+  run  1: server   399.6 ms   model   396.8 ms   style   1.4 ms   client   416.8 ms
+  run  2: server   405.1 ms   model   402.9 ms   style   1.5 ms   client   407.2 ms
+  run  3: server   407.8 ms   model   406.1 ms   style   1.2 ms   client   411.0 ms
+  run  4: server   459.7 ms   model   457.9 ms   style   1.0 ms   client   461.9 ms
+  run  5: server   375.7 ms   model   373.8 ms   style   1.3 ms   client   377.6 ms
+  run  6: server   383.8 ms   model   382.2 ms   style   1.1 ms   client   385.6 ms
+  run  7: server   371.0 ms   model   369.6 ms   style   0.9 ms   client   372.7 ms
+  run  8: server   372.2 ms   model   370.7 ms   style   1.0 ms   client   374.2 ms
+  run  9: server   369.7 ms   model   368.1 ms   style   1.1 ms   client   371.5 ms
+  run 10: server   379.2 ms   model   377.6 ms   style   1.1 ms   client   381.1 ms
+
+server duration_ms: mean 392.4, median 381.5, min 369.7, max 459.7
+model_ms mean 390.6  |  style_ms mean 1.16
+client round trip mean 396.0 ms

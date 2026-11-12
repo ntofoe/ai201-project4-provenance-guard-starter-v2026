@@ -564,10 +564,6 @@ I would keep the strict threshold and let more AI text through as "unsure," beca
      Do not delete and recreate this repository.
      ═════════════════════════════════════════════════════════════════════ -->
 
----
-
-
-
 
 ---
 
@@ -586,5 +582,55 @@ Out of scope, decided before building:
 - No hosting. The service loads GPT-2 locally (~550 MB), which won't fit a 512 MB free host, so it runs locally (Path B).
 - No rate-limit changes, even though Unit 8 found the limiter can be dodged by changing `creator_id`.
 - The time limit stops *waiting* for a slow signal; it doesn't kill the computation. Stopping a running PyTorch call cleanly is out of scope.
+
+
+**Running It**
+
+Path B: local with logs. The service loads GPT-2 locally (about 548 MB), which won't fit a 512 MB free host. The start command, setup, and environment are in [`RUNNING.md`](RUNNING.md) (start with `python app.py`, or `AI201_FAULTS=1 python app.py` to enable fault injection for testing).
+
+I tested `RUNNING.md` by cloning the repo into a fresh folder and following it exactly. **The first attempt found a gap:** pip installed NumPy 2.5.4, which torch 2.2.2 (the last build for Intel Macs, compiled against NumPy 1.x) warns may crash. I pinned `numpy<2` in `requirements.txt`, and the second clean-clone test passed `test.py` with no warning (9 of 9 checks; "all 8 import cleanly"). The same test also measured a cold-start model warm-up of 10,417 ms, which is now documented in `RUNNING.md`. Caveat: GPT-2 was already in my Hugging Face cache, so the clean test did not re-download it.
+
+**Instrumentation**
+
+Every request to `/submit` writes one JSON record to `logs/audit.jsonl` (via `audit.log_decision` or `audit.log_rejection`, called from `app.py::submit` and `app.py::_reject`). Each decision record holds:
+
+- **When:** `timestamp`
+- **What came in:** `creator_id`, `word_count`, `char_count`, `text_sha256` (first 16 hex characters of a SHA-256 of the text), `text_preview` (first 80 characters)
+- **What came out:** `content_id`, `guess`, `label`, `model_score`, `style_score`, `combined_score`, `status`
+- **How long it took:** `duration_ms` (whole request, timed from a `before_request` hook), `model_ms`, `style_ms`
+- **What went wrong (new this unit):** `degraded` (true if either signal failed), `failures` (for each failed signal: `signal`, `kind` of `error`/`timeout`/`bad_value`, the error message, and its `ms`), and `fault_injected` (the test fault, if one was forced)
+
+Rejected requests (400/413) are logged with `reason`, `http_status`, and `duration_ms`. Known gap: rate-limit rejections (429) are logged by the starter's handler, but Flask-Limiter runs before my timer starts, so they carry no `duration_ms`.
+
+One change in what the log holds: Unit 7–8's log stored no submitted text at all (which is why the Unit 8 log-injection attack PI05 held). This unit adds an 80-character `text_preview` so a record shows what came in. It's still written as escaped JSON, so text in it can't break or forge a record.
+
+Thirteen entries from the log. The `label` field is omitted from each to keep this readable; it's the full label text shown in Label Variants. The first two are **failed runs**: a *real* cold-start timeout (the model was still loading from disk when the first request arrived, before I added the startup warm-up) and an *injected* error. The third is a rejected input. The last ten are the cost-measurement runs.
+
+```json
+{"char_count": 230, "combined_score": null, "content_id": "14df7d07-85db-4ecd-98b1-91239956f73a", "creator_id": "cap_test_1", "degraded": true, "duration_ms": 5008.3, "failures": [{"error": "no result after 5.0s", "kind": "timeout", "ms": 5003.3, "signal": "model"}], "fault_injected": null, "guess": "unsure", "model_ms": 5003.3, "model_score": null, "status": "decided", "style_ms": 4.1, "style_score": 0.7, "text_preview": "Artificial intelligence is transforming the way we live and work. It offers many", "text_sha256": "3504872697a56490", "timestamp": "2026-11-11T23:50:19+00:00", "word_count": 31}
+{"char_count": 230, "combined_score": null, "content_id": "0d73d63d-4672-4bcb-91a4-cde9150551ef", "creator_id": "cap_test_2", "degraded": true, "duration_ms": 0.9, "failures": [{"error": "RuntimeError: injected fault: model signal failed", "kind": "error", "ms": 0.1, "signal": "model"}], "fault_injected": "model_error", "guess": "unsure", "model_ms": 0.1, "model_score": null, "status": "decided", "style_ms": 0.2, "style_score": 0.7, "text_preview": "Artificial intelligence is transforming the way we live and work. It offers many", "text_sha256": "3504872697a56490", "timestamp": "2026-11-11T23:50:19+00:00", "word_count": 31}
+{"creator_id": "cap_test_4", "duration_ms": 0.4, "event": "rejected", "http_status": 400, "reason": "EMPTY_TEXT", "status": "rejected", "timestamp": "2026-11-11T23:55:38+00:00"}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "fb21729e-5086-4680-8e15-b7013b3020f8", "creator_id": "cost_run_1", "degraded": false, "duration_ms": 399.6, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 396.8, "model_score": 0.8931, "status": "decided", "style_ms": 1.4, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:55+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "439c9a47-fe38-4ffe-9578-bbca849ca767", "creator_id": "cost_run_2", "degraded": false, "duration_ms": 405.1, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 402.9, "model_score": 0.8931, "status": "decided", "style_ms": 1.5, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:55+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "6d7e593c-1785-4ab6-91d9-6717a4945bbb", "creator_id": "cost_run_3", "degraded": false, "duration_ms": 407.8, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 406.1, "model_score": 0.8931, "status": "decided", "style_ms": 1.2, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:55+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "bdc0e414-e680-4e2b-b8a8-00c8c2255674", "creator_id": "cost_run_4", "degraded": false, "duration_ms": 459.7, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 457.9, "model_score": 0.8931, "status": "decided", "style_ms": 1.0, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:56+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "b45552c9-7880-433d-bcb9-350ba2424797", "creator_id": "cost_run_5", "degraded": false, "duration_ms": 375.7, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 373.8, "model_score": 0.8931, "status": "decided", "style_ms": 1.3, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:56+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "8f89f949-76cd-45e1-a1ab-e6a6cacb4450", "creator_id": "cost_run_6", "degraded": false, "duration_ms": 383.8, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 382.2, "model_score": 0.8931, "status": "decided", "style_ms": 1.1, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:57+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "bd8d7781-7633-4832-948d-d16dbb76de80", "creator_id": "cost_run_7", "degraded": false, "duration_ms": 371.0, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 369.6, "model_score": 0.8931, "status": "decided", "style_ms": 0.9, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:57+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "f64f70a9-11a2-4dce-83f9-29e7918400c5", "creator_id": "cost_run_8", "degraded": false, "duration_ms": 372.2, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 370.7, "model_score": 0.8931, "status": "decided", "style_ms": 1.0, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:57+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "179c3c9b-dc2b-4b7b-baff-fbd4503eb80b", "creator_id": "cost_run_9", "degraded": false, "duration_ms": 369.7, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 368.1, "model_score": 0.8931, "status": "decided", "style_ms": 1.1, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:58+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": 0.76475, "content_id": "2e55529c-6900-4a0d-a5ce-fa87e7fd7875", "creator_id": "cost_run_10", "degraded": false, "duration_ms": 379.2, "failures": [], "fault_injected": null, "guess": "unsure", "model_ms": 377.6, "model_score": 0.8931, "status": "decided", "style_ms": 1.1, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:12:58+00:00", "word_count": 225}
+```
+
+**What It Costs**
+
+This system calls no paid API, so its real cost is **seconds of compute.** I measured it with `measure_cost.py`: 10 identical submissions of a realistic 225-word piece (my statement of purpose), then the server-side `duration_ms` of each read back from the audit log. That's the service's own timing, not an estimate. Output: `results/cost_measurement.txt`.
+
+- **Mean: 392.4 ms per run** (median 381.5, min 369.7, max 459.7). No run was degraded.
+- **Where the time goes:** the model signal averaged 390.6 ms (99.5% of the run); the style signal averaged 1.2 ms; validation, logging, and the response took the remaining ~2 ms.
+- **Cost depends on length, up to a cap:** a 31-word submission took 69 ms; this 225-word one takes about 390 ms. Signal one stops reading at ~400 tokens (about 300 words), so cost should level off for anything longer.
+- **Startup is a separate, one-time cost:** about 10.4 s to load GPT-2 (cold start, measured from a clean clone).
+
+**A hundred people a day:** 100 runs × 0.392 s = **39.2 seconds of compute per day.** If each person submitted ten times, that's 1,000 × 0.392 s = 392 s, about 6.5 minutes a day. At this scale compute isn't the constraint; the model's ~550 MB memory footprint is, which is what ruled out the free host.
 
 📖 **How to run this project: [RUNNING.md](RUNNING.md)**
