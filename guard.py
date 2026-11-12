@@ -1,7 +1,7 @@
 """
 Capstone (Shape B): run one signal so it can't take down the request.
 
-run_signal() calls a signal on a worker thread and waits at most
+run_signal() calls a signal on its OWN thread and waits at most
 config.SIGNAL_TIMEOUT_SECONDS. It never raises. It returns:
 
     (score, None, elapsed_ms)      on success: a finite score in [0, 1]
@@ -9,17 +9,24 @@ config.SIGNAL_TIMEOUT_SECONDS. It never raises. It returns:
                                    signal, kind ("error" | "timeout" | "bad_value"),
                                    error (short message), ms
 
+Capstone improvement: this used to run signals on a shared pool of 4 worker
+threads. A timed-out signal kept its worker, and the timeout clock started when
+a job was queued, so 4 slow signals at once made healthy requests time out
+waiting for a free worker (load observation: 3 of 3 healthy requests falsely
+degraded, ~10 s each). Now each call gets its own thread, so a stuck signal
+only ever holds itself. config.SIGNAL_WORKERS is no longer used.
+
+Trade-off: threads are no longer capped. Each stuck call keeps its thread alive
+until the signal finishes on its own.
+
 Limitation (declared out of scope): on timeout we stop WAITING; the signal
-keeps running in the background and holds a worker until it finishes.
+keeps running in the background until it finishes.
 """
-import concurrent.futures as cf
 import math
+import threading
 import time
 
 import config
-
-_pool = cf.ThreadPoolExecutor(max_workers=config.SIGNAL_WORKERS,
-                              thread_name_prefix="signal")
 
 FAULTS = {"model_error", "model_slow", "style_error", "style_slow"}
 
@@ -44,23 +51,40 @@ def _ms(t0):
     return round((time.perf_counter() - t0) * 1000, 1)
 
 
+def _run_own_thread(call, text, timeout):
+    """Run call(text) on a fresh daemon thread; wait at most `timeout` seconds."""
+    box = {}
+    done = threading.Event()
+
+    def target():
+        try:
+            box["value"] = call(text)
+        except BaseException as e:  # any error inside the signal
+            box["error"] = e
+        finally:
+            done.set()
+
+    threading.Thread(target=target, daemon=True, name="signal").start()
+    finished = done.wait(timeout)
+    return finished, box
+
+
 def run_signal(name, fn, text, fault=None):
     call = _inject(name, fn, fault)
     t0 = time.perf_counter()
-    future = _pool.submit(call, text)
-    try:
-        raw = future.result(timeout=config.SIGNAL_TIMEOUT_SECONDS)
-    except cf.TimeoutError:
-        ms = _ms(t0)
+    finished, box = _run_own_thread(call, text, config.SIGNAL_TIMEOUT_SECONDS)
+    ms = _ms(t0)
+
+    if not finished:
         return None, {"signal": name, "kind": "timeout",
                       "error": f"no result after {config.SIGNAL_TIMEOUT_SECONDS}s",
                       "ms": ms}, ms
-    except Exception as e:  # any error inside the signal
-        ms = _ms(t0)
+    if "error" in box:
+        e = box["error"]
         return None, {"signal": name, "kind": "error",
                       "error": f"{type(e).__name__}: {e}"[:200], "ms": ms}, ms
 
-    ms = _ms(t0)
+    raw = box.get("value")
     try:
         score = float(raw)
     except (TypeError, ValueError):
