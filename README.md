@@ -633,4 +633,130 @@ This system calls no paid API, so its real cost is **seconds of compute.** I mea
 
 **A hundred people a day:** 100 runs × 0.392 s = **39.2 seconds of compute per day.** If each person submitted ten times, that's 1,000 × 0.392 s = 392 s, about 6.5 minutes a day. At this scale compute isn't the constraint; the model's ~550 MB memory footprint is, which is what ruled out the free host.
 
+**Run Log and Verdicts**
+
+Criteria: `criteria.md` → "Capstone criteria" (committed in `add capstone criteria`, before any results). Tests: `capstone_eval.py` (`--mode on` for criteria 1–4, `--mode off` for criterion 5), which follows the protocol in `criteria.md` exactly: one request at a time, a fresh `creator_id` each time, a 15-second wait after each slow fault. Baseline for criterion 4: `results/unit8_baseline.json`, captured by `capture_baseline.py` from the final Unit 8 code (commit `6ab06cf`, run from a separate git worktree). Results: `results/capstone_before_faults_on.json` and `results/capstone_before_faults_off.json` (committed as `first capstone results`).
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. A signal error returns an unsure result | 3 of 3 | 3/3 | 3/3 | 3/3 | **MET** |
+| 2. A slow signal returns an unsure result within 6.0 s | 3 of 3 | 3/3 | 3/3 | 3/3 | **MET** |
+| 3. Every failed signal leaves a matching audit record | 6 of 6 | 6/6 | 6/6 | 6/6 | **MET** |
+| 4. Healthy requests preserve Unit 8 scoring | 3 of 3 | 3/3 | 3/3 | 3/3 | **MET** |
+| 5. Fault headers have no effect when fault injection is off | 2 of 2 | 2/2 | 2/2 | 2/2 | **MET** |
+
+**How I decided each verdict:** each target had to hold in every trial, and it did. Criterion 2's nine slow requests took 5.005–5.010 s (all under 6.0). Criterion 4's healthy responses matched the Unit 8 baseline exactly (model 0.8931, style 0.6364, combined 0.7648, confidence 0.5295, "unsure"). Criterion 5's `model_error` and `model_slow` headers produced that same healthy response with `fault_injected: null`.
+
+**Real output from trial 1** (`capstone_eval.py` calling `app.py::submit`; long `label` strings shortened with "..."):
+
+```json
+{
+  "criterion_1": {"http_status": 200, "client_secs": 0.017, "response": {"combined_score": null, "confidence": 0.0, "content_id": "3937e7a2-d1d1-4308-922d-02daf738cfcb", "degraded": true, "failures": [{"kind": "error", "signal": "model"}], "guess": "unsure", "label": "Our automated check couldn't tell whether this was written b...", "model_score": null, "status": "decided", "style_score": 0.6364}},
+  "criterion_2": {"http_status": 200, "client_secs": 5.005, "response": {"combined_score": null, "confidence": 0.0, "content_id": "8858fce6-0084-4693-9d2c-35a5cfc909b5", "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}], "guess": "unsure", "label": "Our automated check couldn't tell whether this was written b...", "model_score": null, "status": "decided", "style_score": 0.6364}},
+  "criterion_4": {"http_status": 200, "client_secs": 0.516, "response": {"combined_score": 0.7648, "confidence": 0.5295, "content_id": "1113dbd4-aa10-42be-91e6-f66e89fa289e", "degraded": false, "failures": [], "guess": "unsure", "label": "Our automated check couldn't tell whether this was written b...", "model_score": 0.8931, "status": "decided", "style_score": 0.6364}},
+  "criterion_5": {"header": "model_error", "http_status": 200, "response": {"combined_score": 0.7648, "confidence": 0.5295, "content_id": "d60d912b-870e-4156-8f26-593102a3a736", "degraded": false, "failures": [], "guess": "unsure", "label": "Our automated check couldn't tell whether this was written b...", "model_score": 0.8931, "status": "decided", "style_score": 0.6364}}
+}
+```
+
+Criterion 3: the audit records (from `logs/audit.jsonl`, written by `app.py::submit` via `audit.log_decision`) for the criterion 1 and criterion 2 requests above. The writer saw the same response for both; the log tells them apart:
+
+```json
+{"char_count": 1622, "combined_score": null, "content_id": "3937e7a2-d1d1-4308-922d-02daf738cfcb", "creator_id": "cap_eval_139b1193", "degraded": true, "duration_ms": 2.5, "failures": [{"error": "RuntimeError: injected fault: model signal failed", "kind": "error", "ms": 0.2, "signal": "model"}], "fault_injected": "model_error", "guess": "unsure", "model_ms": 0.2, "model_score": null, "status": "decided", "style_ms": 1.4, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:31:17+00:00", "word_count": 225}
+{"char_count": 1622, "combined_score": null, "content_id": "8858fce6-0084-4693-9d2c-35a5cfc909b5", "creator_id": "cap_eval_d0151a68", "degraded": true, "duration_ms": 5002.6, "failures": [{"error": "no result after 5.0s", "kind": "timeout", "ms": 5000.2, "signal": "model"}], "fault_injected": "model_slow", "guess": "unsure", "model_ms": 5000.2, "model_score": null, "status": "decided", "style_ms": 2.0, "style_score": 0.6364, "text_preview": "During my undergraduate studies in Mathematics, I developed a solid foundation i", "text_sha256": "9c79590daf2bcad8", "timestamp": "2026-11-12T00:31:22+00:00", "word_count": 225}
+```
+
+**All five met, so were my targets too low? Yes.** All five criteria test one request at a time. When I reviewed them before running anything, the honest answer to "what would have to happen for this to fail?" was the same for every one: a bug I hadn't seen. Criterion 2 is the clearest case of a loose target: the measured range was 5.005–5.010 s against a 6.0 s limit. If I tightened one target, it would be **criterion 2, to 5.1 s**, which still allows for logging and response time but would catch any added delay after the timeout. The real gap is that **no criterion tested concurrent requests**, so I ran a load observation (below) to look where my criteria didn't.
+
+**Load observation (not a criterion): what my criteria missed.** `load_observation.py` sends 4 slow-fault requests at once, then 3 healthy requests 0.5 s later, all concurrent. Before the improvement (`results/load_observation_before.txt`):
+
+```
+{"kind": "healthy", "secs": 10.01, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}, {"kind": "timeout", "signal": "style"}], "guess": "unsure"}
+{"kind": "healthy", "secs": 10.01, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}, {"kind": "timeout", "signal": "style"}], "guess": "unsure"}
+{"kind": "healthy", "secs": 10.01, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}, {"kind": "timeout", "signal": "style"}], "guess": "unsure"}
+{"kind": "slow", "secs": 10.03, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}, {"kind": "timeout", "signal": "style"}], "guess": "unsure"}
+(three more slow rows, identical)
+healthy requests degraded: 3 of 3
+```
+
+**Diagnosis.** *Stage:* `guard.run_signal`, specifically its shared pool of 4 worker threads. *Mechanism, in three parts:* (1) a timed-out signal keeps its worker for the full 15-second fault, because the wrapper stops waiting but can't stop the thread; (2) the 5-second clock starts when a job is **queued**, so time spent waiting for a free worker counts against the limit; (3) the two signals go through the pool one after the other, so with the pool full, the model job times out at 5 s and the style job (normally about 1 ms) then waits behind the same busy workers and times out at 10 s. Four slow requests filled the pool, and every healthy request behind them was reported as failed, even though nothing was wrong with it. Under concurrency, criterion 2's own target would also fail (10.03 s, not under 6.0 s).
+
+
+**The Improvement**
+
+*What I changed:* one thing, in `guard.py::run_signal`. Each signal call now runs on **its own thread** (`guard.py::_run_own_thread`) instead of a shared pool of 4 workers. The time limit, error catching, return values, and `app.py` are all unchanged. Committed on its own: `Capstone improvement: run each signal on its own thread instead of a shared 4-worker pool` (between the `first capstone results` commit and the after-runs commit).
+
+*Why this change:* the diagnosis said a stuck signal holds a **shared** resource, so one slow signal can starve every other request. A thread per call removes the sharing: a stuck signal now only ever holds its own thread. I considered two alternatives. Running the style signal outside the pool would have fixed the 10-second double timeout but left healthy requests' model signal falsely timing out. Raising the pool from 4 to 16 would have passed this load test but only moved the threshold: 16 concurrent slow requests would reproduce the same failure.
+
+**Run Log — After** (`results/capstone_after_faults_on.json`, `results/capstone_after_faults_off.json`, same protocol and script)
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Before | After |
+|---|---|---|---|---|---|---|
+| 1. A signal error returns an unsure result | 3 of 3 | 3/3 | 3/3 | 3/3 | MET | **MET** |
+| 2. A slow signal returns an unsure result within 6.0 s | 3 of 3 | 3/3 | 3/3 | 3/3 | MET | **MET** |
+| 3. Every failed signal leaves a matching audit record | 6 of 6 | 6/6 | 6/6 | 6/6 | MET | **MET** |
+| 4. Healthy requests preserve Unit 8 scoring | 3 of 3 | 3/3 | 3/3 | 3/3 | MET | **MET** |
+| 5. Fault headers have no effect when fault injection is off | 2 of 2 | 2/2 | 2/2 | 2/2 | MET | **MET** |
+
+Criterion 2 elapsed times after: 5.005–5.010 s, the same as before. No regressions: everything the criteria measured still holds.
+
+**Load observation — before and after** (`results/load_observation_before.txt`, `results/load_observation_after.txt`)
+
+| | Before | After |
+|---|---|---|
+| Healthy requests falsely degraded | **3 of 3** | **0 of 3** |
+| Healthy request time | 10.01 s (both signals timed out) | **1.03 s**, scored correctly |
+| Slow-fault request time | 10.03 s (model *and* style timed out) | **5.02–5.03 s** (only the model timed out, as injected) |
+
+After:
+
+```
+{"kind": "healthy", "secs": 1.03, "degraded": false, "failures": [], "guess": "unsure"}
+{"kind": "healthy", "secs": 1.03, "degraded": false, "failures": [], "guess": "unsure"}
+{"kind": "healthy", "secs": 1.03, "degraded": false, "failures": [], "guess": "unsure"}
+{"kind": "slow", "secs": 5.02, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}], "guess": "unsure"}
+{"kind": "slow", "secs": 5.03, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}], "guess": "unsure"}
+{"kind": "slow", "secs": 5.03, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}], "guess": "unsure"}
+{"kind": "slow", "secs": 5.03, "degraded": true, "failures": [{"kind": "timeout", "signal": "model"}], "guess": "unsure"}
+healthy requests degraded: 0 of 3
+```
+
+*Did it help?* Yes, for exactly the failure it targeted. Under concurrent load, healthy requests went from 3 of 3 falsely degraded to 0 of 3, and slow requests now fail in ~5 s as designed instead of 10. My five criteria can't show this, since they were met before and after. Their after-run shows the change broke nothing. The load observation is the evidence that it helped.
+
+*What it cost:* threads are no longer capped. Each stuck call keeps its own thread alive until the signal finishes on its own (15 s for an injected slow fault), so a burst of N slow requests now means N live threads instead of a ceiling of 4. And healthy requests now share the CPU when they overlap: three concurrent GPT-2 calls took 1.03 s each, about 2.6 times the 392 ms sequential average. That's well under the 5 s limit here, but enough concurrent healthy requests would eventually push past it. The failure moved from "a full worker queue" to "a busy CPU," and it now takes more load to trigger it.
+
+**What's Still Broken**
+
+All five criteria were met before and after, so by the spec's rule this section names the target I'd tighten, then what my criteria never tested.
+
+*The target I'd tighten:* criterion 2, from 6.0 s to **5.1 s**. Measured slow-fault responses took 5.005–5.010 s in every trial, before and after. A 6.0 s limit would let nearly a full second of extra delay after the timeout go unnoticed; 5.1 s still covers logging and the response but would catch it.
+
+*What's still broken, or untested:*
+
+- **Concurrent healthy load is now the limit.** Three overlapping GPT-2 calls took 1.03 s each, 2.6 times the sequential average. I never measured where concurrent healthy requests start crossing the 5 s limit and get falsely degraded again. *What I'd do:* run the load observation at increasing concurrency (3, 6, 12, 24 healthy requests) to find that point, then decide between a longer limit and a cap. *Why I stopped:* this unit allows one improvement, and I spent it on the worker-pool failure that I'd actually observed.
+- **Threads are uncapped.** Since the improvement, each stuck signal holds its own thread until it finishes, so a burst of slow requests creates that many live threads. *What I'd do:* add a cap (a semaphore) that returns a degraded "unsure" immediately, with `kind: "overloaded"`, when too many signal threads are alive, so overload fails fast and visibly instead of piling up. *Why I stopped:* it's a second change, and a cap reintroduces a limit, so it would need its own before/after test.
+- **A timed-out signal keeps computing.** The wrapper stops waiting at 5 s, but the GPT-2 call (or the injected sleep) runs to completion in the background. *Why I stopped:* declared out of scope in The Shape; stopping a running PyTorch call cleanly isn't something Python threads support.
+- **My criteria never tested concurrency.** All five ran one request at a time, which is why they couldn't catch the failure the load observation found. Next time, at least one criterion would name a concurrent load and a target for it.
+- **The fault header is an attack surface if misconfigured.** With `AI201_FAULTS=1`, anyone who sends `X-Fault` can force "unsure" on their own submission. Criterion 5 shows the header is inert when injection is off, but nothing stops someone starting a real deployment with it on. *What I'd do:* refuse to start with fault injection on unless debug mode is also on.
+- **Unchanged from Unit 8:** the rate limit can still be dodged by rotating `creator_id`, and the service still runs Flask's debug server, which isn't meant for production.
+
+*The one thing I'd do first with another unit:* find the concurrency point where healthy requests start getting falsely degraded again, and write a criterion for it. It's the only failure mode this unit actually observed, and my improvement moved it rather than removed it, so it's the place where a real writer would most likely be told "unsure" for no reason.
+
+**How I Used AI**
+
+*Moment 1: reviewing my criteria before committing them*
+
+- *What I asked for:* I pasted my five capstone criteria into Claude and asked it to apply the spec's three self-check questions to each one (testable from the sentence alone? would two people score it the same way? what would have to happen for it to fail?) without rewriting them.
+- *What came back:* Criterion 3 had two gaps a stranger would need to ask about: which six requests it meant, and how to tell a decision record from an appeal record. More importantly, for every criterion, the honest answer to "what would make this fail?" was the same: a bug I hadn't seen. All five ran one request at a time, so none tested concurrency. Claude first said my protocol excluded the stressors I'd measured, then corrected itself: the startup warm-up already prevents cold-start timeouts, and sequential requests can never exhaust four workers, so the real untested risk was concurrency.
+- *What I changed:* I added the two clarifications to criterion 3, marked in italics in `criteria.md` as clarifications, not target changes. I kept all five criteria as written, and I decided to test concurrency separately as a load observation instead of changing a criterion.
+
+*Moment 2: choosing the improvement*
+
+- *What I asked for:* After all five criteria came back MET, I asked Claude to predict what concurrent load would do before I ran it, then, after the run, to explain the trade-offs of three possible fixes before I chose one.
+- *What came back:* It predicted healthy requests would be falsely degraded because the shared pool would be full. That held (3 of 3, 10.01 s each). But it missed that the slow-fault requests themselves would also take 10 s, because their style signal queued behind the same busy workers. It laid out three options with predicted outcomes and costs, and recommended a thread per signal call.
+- *What I changed:* I asked for a fuller explanation before deciding, then chose the thread-per-call change. I kept the write-up of its cost (uncapped threads, CPU sharing under load) rather than presenting the improvement as a clean win.
+
+*What else came from Claude:* recommending Provenance Guard and Shape B (my choice to accept), the code in `guard.py`, the timing and logging additions in `app.py`, the test scripts (`capstone_eval.py`, `capture_baseline.py`, `load_observation.py`, `measure_cost.py`), and first drafts of these README sections, which I reviewed. Claude initially assumed a warm GPT-2 call took a second or two; measurement showed ~75 ms for a short paragraph and ~390 ms for 225 words.
+
+I wrote the five criteria myself.
+
 📖 **How to run this project: [RUNNING.md](RUNNING.md)**
