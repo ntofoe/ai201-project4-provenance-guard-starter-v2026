@@ -1,0 +1,10 @@
+{
+  "source_commit": "6ab06cf (final Unit 8)",
+  "http_status": 200,
+  "model_score": 0.8931,
+  "style_score": 0.6364,
+  "combined_score": 0.7648,
+  "confidence": 0.5295,
+  "guess": "unsure",
+  "label": "Our automated check couldn't tell whether this was written by a person or with help from AI. That's common: careful, formal, or short writing often lands here, and it is not a judgment about you or your work. Nothing happens to your submission because of this result. If you'd like a person to look at it, you can request a review."
+}

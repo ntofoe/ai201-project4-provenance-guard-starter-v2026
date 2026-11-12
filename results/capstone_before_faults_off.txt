@@ -1,0 +1,8 @@
+trial 1: C5 2/2
+trial 2: C5 2/2
+trial 3: C5 2/2
+
+| Criterion | Run 1 | Run 2 | Run 3 |
+| 5 | 2/2 | 2/2 | 2/2 |
+
+wrote results/capstone_before_faults_off.json
