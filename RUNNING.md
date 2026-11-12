@@ -27,6 +27,8 @@ pip install -r requirements.txt
 python test.py
 ```
 
+Tested by cloning into a fresh folder and following these steps exactly. Caveat: GPT-2 was already in the local Hugging Face cache, so that test did not re-download the model. A new machine will also download about 548 MB on first start.
+
 ## What the environment needs
 
 - **Python:** 3.12 (tested on 3.12.3)
@@ -35,6 +37,10 @@ python test.py
   and cached in `~/.cache/huggingface/`. First start takes longer while it downloads.
 - **Memory:** at least 2 GB free
 - **Ports:** the service listens on `http://127.0.0.1:5000`
+
+- **NumPy below 2:** pinned in `requirements.txt` (`numpy<2`). Found by testing these instructions from a clean clone: without the pin, pip installed NumPy 2.5.4, which torch 2.2.2 (built for NumPy 1.x) warns may crash.
+- **Startup time:** the model warm-up takes about 10 seconds on a cold start (measured: 10,417 ms from a clean clone). The service doesn't answer requests until it finishes.
+
 
 ## Check it's running
 

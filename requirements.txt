@@ -27,3 +27,7 @@ gunicorn>=21.2,<24.0
 # wheel from satisfying this file. Anything before 2026.10.19 still trusts the
 # revoked emSign intermediates.
 certifi>=2026.10.19
+
+# Capstone: torch 2.2.2 (the last build for Intel Macs) was compiled against
+# NumPy 1.x. Without this pin, pip installs NumPy 2.x and torch warns it may crash.
+numpy<2

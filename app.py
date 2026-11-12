@@ -414,7 +414,8 @@ def main():
     print(f"  detector model:  {config.DETECTOR_MODEL}")
     print(f"  rate limiting:   {'ON' if config.RATE_LIMITING_ENABLED else 'off (unit 8)'}")
     print(f"  fault injection: {'ON (testing only)' if config.FAULT_INJECTION_ENABLED else 'off'}")
-
+    print(f"  audit log:       {config.AUDIT_LOG}")
+    
     # Capstone: load GPT-2 before serving, so the first real request isn't
     # timed out by the signal limit while the model loads from disk.
     # Under the debug reloader main() runs twice; only the serving process warms up.
