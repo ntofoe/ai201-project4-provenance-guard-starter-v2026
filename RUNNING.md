@@ -1,3 +1,34 @@
+# Peer testers: fastest path (Demo Day)
+
+**If you built Provenance Guard in this course, reuse your own venv.** It already has torch and the GPT-2 model, so setup takes about a minute instead of ten:
+
+```bash
+git clone https://github.com/ntofoe/ai201-project4-provenance-guard-starter-v2026 pg_nick
+cd pg_nick
+source ~/YOUR-PROVENANCE-GUARD-FOLDER/.venv/bin/activate     # Windows: ..\YOUR-FOLDER\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+AI201_FAULTS=1 python app.py
+```
+
+Notes: needs **Python 3.12** (the `numpy<2` pin has no wheels for 3.13). If your venv has NumPy 2, pip will downgrade it to 1.x in that venv. Starting completely fresh instead? Follow the full setup below; expect about 10 minutes (torch plus a 548 MB model download).
+
+**Then try these** (second terminal, venv active; Windows: use `curl.exe` on one line):
+
+```bash
+# 1. Healthy request: scored normally
+curl -s -X POST http://127.0.0.1:5000/submit -H "Content-Type: application/json" -d '{"text": "Artificial intelligence is transforming the way we live and work. It offers many benefits, including increased efficiency and improved decision-making. However, it also raises important ethical questions that society must address.", "creator_id": "peer1"}'
+# 2. Forced crash: should come back 200 "unsure", degraded, kind "error"
+curl -s -X POST http://127.0.0.1:5000/submit -H "Content-Type: application/json" -H "X-Fault: model_error" -d '{"text": "Artificial intelligence is transforming the way we live and work. It offers many benefits, including increased efficiency and improved decision-making. However, it also raises important ethical questions that society must address.", "creator_id": "peer2"}'
+# 3. Forced hang: should pause ~5 s, then come back "unsure", kind "timeout"
+curl -s -X POST http://127.0.0.1:5000/submit -H "Content-Type: application/json" -H "X-Fault: model_slow" -d '{"text": "Artificial intelligence is transforming the way we live and work. It offers many benefits, including increased efficiency and improved decision-making. However, it also raises important ethical questions that society must address.", "creator_id": "peer3"}'
+# 4. See what the log recorded about each
+curl -s "http://127.0.0.1:5000/log?limit=3"
+```
+
+Then push on it: restart **without** `AI201_FAULTS=1` and send the `X-Fault` header again (it should do nothing), or send empty or malformed input.
+
+---
+
 # Running Provenance Guard: Capstone (Path B, local with logs)
 
 This service loads GPT-2 locally (~550 MB), which doesn't fit a 512 MB free host,
